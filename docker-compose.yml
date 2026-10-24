@@ -1,0 +1,184 @@
+# RutaSur: todo el entorno se levanta con un solo comando.
+#
+#   docker compose up -d --build
+#
+# Interfaz:         http://localhost:3000
+# API simulador:    http://localhost:4000/estado
+# Kafka (host):     localhost:29092
+# MongoDB (host):   mongodb://localhost:27017/?directConnection=true
+#
+# Perfiles opcionales:
+#   replay        → analitica-tiempos (4.º indicador, demostración de reprocesamiento)
+#   herramientas  → herramientas (scripts de lag, DLQ, verificación) y kafka-ui en :8080
+
+name: rutasur
+
+x-imagen-servicios: &imagen-servicios
+  image: rutasur/servicios:1.0
+  build:
+    context: .
+    dockerfile: Dockerfile
+
+x-entorno: &entorno
+  KAFKA_BROKERS: kafka:9092
+  MONGO_URL: mongodb://mongo:27017/?directConnection=true
+  MONGO_DB: rutasur
+  SIMULADOR_URL: http://simulador:4000
+  KAFKAJS_NO_PARTITIONER_WARNING: "1"
+
+x-servicio: &servicio
+  <<: *imagen-servicios
+  restart: unless-stopped
+  init: true
+  environment:
+    <<: *entorno
+  depends_on:
+    kafka-init:
+      condition: service_completed_successfully
+    mongo:
+      condition: service_healthy
+
+services:
+  # ------------------------------------------------------------------ infraestructura
+  kafka:
+    image: apache/kafka:3.8.0
+    hostname: kafka
+    ports:
+      - "29092:29092"
+    environment:
+      CLUSTER_ID: 4L6g3nShT-eMCtK--X86sw
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNO://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNO://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNO:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_NUM_PARTITIONS: 3
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 15s
+
+  mongo:
+    image: mongo:7.0
+    hostname: mongo
+    # Replica set de un solo nodo: lo exigen los change streams y las transacciones.
+    command: ["--replSet", "rs0", "--bind_ip_all", "--quiet"]
+    ports:
+      - "27017:27017"
+    healthcheck:
+      # Inicializa el replica set la primera vez y luego confirma que hay primario.
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - --eval
+        - "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'mongo:27017' }] }).ok }; db.hello().isWritablePrimary || quit(1)"
+      interval: 5s
+      timeout: 10s
+      retries: 30
+      start_period: 10s
+
+  kafka-init:
+    <<: *imagen-servicios
+    command: ["node", "scripts/crear-topics.js"]
+    environment:
+      <<: *entorno
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: "no"
+
+  # ------------------------------------------------------------------ servicios
+  simulador:
+    <<: *servicio
+    command: ["node", "services/simulador/index.js"]
+    ports:
+      - "4000:4000"
+    environment:
+      <<: *entorno
+      SIM_SEMILLA: "${SIM_SEMILLA:-42}"
+      SIM_FACTOR: "${SIM_FACTOR:-120}"
+      SIM_ENVIOS_POR_MINUTO: "${SIM_ENVIOS_POR_MINUTO:-20}"
+      SIM_MAX_ENVIOS: "${SIM_MAX_ENVIOS:-0}"
+      SIM_PRECARGA_HORAS: "${SIM_PRECARGA_HORAS:-48}"
+    # El reloj se guarda en /data dentro del contenedor: sobrevive a stop/start/restart y se
+    # descarta con `docker compose down`, igual que Kafka y MongoDB (que tampoco usan volúmenes).
+
+  proyector:
+    <<: *servicio
+    command: ["node", "services/proyector/index.js"]
+
+  notificaciones:
+    <<: *servicio
+    command: ["node", "services/notificaciones/index.js"]
+
+  reprogramacion:
+    <<: *servicio
+    command: ["node", "services/reprogramacion/index.js"]
+
+  monitor-sla:
+    <<: *servicio
+    command: ["node", "services/monitor-sla/index.js"]
+
+  analitica:
+    <<: *servicio
+    command: ["node", "services/analitica/index.js"]
+
+  # Grupo nuevo que se activa con el sistema en marcha (paso 8 de la demo):
+  #   docker compose --profile replay up -d analitica-tiempos
+  analitica-tiempos:
+    <<: *servicio
+    command: ["node", "services/analitica/tiempos-hub.js"]
+    profiles: ["replay"]
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    image: rutasur/web:1.0
+    restart: unless-stopped
+    init: true
+    ports:
+      - "3000:3000"
+    environment:
+      MONGO_URL: mongodb://mongo:27017/?directConnection=true
+      MONGO_DB: rutasur
+      SIMULADOR_URL: http://simulador:4000
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  # ------------------------------------------------------------------ herramientas (opcional)
+  herramientas:
+    <<: *imagen-servicios
+    command: ["node", "scripts/lag.js"]
+    environment:
+      <<: *entorno
+    profiles: ["herramientas"]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: rutasur
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+    profiles: ["herramientas"]
+    depends_on:
+      kafka:
+        condition: service_healthy

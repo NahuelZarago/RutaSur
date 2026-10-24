@@ -1,0 +1,4 @@
+**/node_modules
+web/.next
+.git
+*.log

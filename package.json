@@ -1,0 +1,28 @@
+{
+  "name": "rutasur",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RutaSur: plataforma de seguimiento de envíos orientada a eventos (Kafka + Node.js + MongoDB + Next.js)",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "simulador": "node services/simulador/index.js",
+    "proyector": "node services/proyector/index.js",
+    "notificaciones": "node services/notificaciones/index.js",
+    "reprogramacion": "node services/reprogramacion/index.js",
+    "monitor-sla": "node services/monitor-sla/index.js",
+    "analitica": "node services/analitica/index.js",
+    "analitica-tiempos": "node services/analitica/tiempos-hub.js",
+    "topics": "node scripts/crear-topics.js",
+    "lag": "node scripts/lag.js",
+    "dlq": "node scripts/dlq.js",
+    "verificar-analitica": "node scripts/verificar-analitica.js"
+  },
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "mongodb": "^6.9.0"
+  }
+}

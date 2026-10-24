@@ -1,0 +1,27 @@
+{
+  "hubs": [
+    { "id": "HUB-NORTE", "nombre": "CD Norte" },
+    { "id": "HUB-CENTRO", "nombre": "CD Centro" },
+    { "id": "HUB-SUR", "nombre": "CD Sur" }
+  ],
+  "zonas": [
+    { "id": "Z-N1", "nombre": "Los Aromos", "hubId": "HUB-NORTE", "tasaFallo": 0.08, "factorManana": 1.0 },
+    { "id": "Z-N2", "nombre": "Villa Esperanza", "hubId": "HUB-NORTE", "tasaFallo": 0.14, "factorManana": 1.3 },
+    { "id": "Z-N3", "nombre": "Parque Industrial", "hubId": "HUB-NORTE", "tasaFallo": 0.05, "factorManana": 0.8 },
+    { "id": "Z-C1", "nombre": "Microcentro", "hubId": "HUB-CENTRO", "tasaFallo": 0.10, "factorManana": 0.9 },
+    { "id": "Z-C2", "nombre": "Barrio Universitario", "hubId": "HUB-CENTRO", "tasaFallo": 0.18, "factorManana": 1.4 },
+    { "id": "Z-C3", "nombre": "Costanera", "hubId": "HUB-CENTRO", "tasaFallo": 0.12, "factorManana": 1.0 },
+    { "id": "Z-S1", "nombre": "Las Lomas", "hubId": "HUB-SUR", "tasaFallo": 0.20, "factorManana": 1.5 },
+    { "id": "Z-S2", "nombre": "Puerto Viejo", "hubId": "HUB-SUR", "tasaFallo": 0.12, "factorManana": 1.0 },
+    { "id": "Z-S3", "nombre": "Barrio Jardín", "hubId": "HUB-SUR", "tasaFallo": 0.07, "factorManana": 1.1 }
+  ],
+  "franjas": [
+    { "id": "MANANA", "nombre": "Mañana", "desde": 8, "hasta": 13 },
+    { "id": "TARDE", "nombre": "Tarde", "desde": 13, "hasta": 19 }
+  ],
+  "repartidoresPorZona": 13,
+  "comercios": [
+    "Tienda Pampa", "Mate & Co", "Librería Del Río", "ElectroSur", "Vivero Litoral",
+    "Deportes Ruta 14", "Moda Austral", "Juguetería Carrusel", "Farmacia Central", "Café de Origen"
+  ]
+}
